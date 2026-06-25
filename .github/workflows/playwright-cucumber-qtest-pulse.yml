@@ -36,15 +36,20 @@ jobs:
       # - name: Install Playwright browsers
       #   run: npx playwright install --with-deps chromium
 
-      - name: Detect last saved feature
+      - name: Detect feature path
         id: features
         run: |
-          FILE=$(git log -1 --name-only --pretty=format: -- 'features/*.feature' | head -1)
-          if [ -n "$FILE" ]; then
-            echo "Feature file detected: $FILE"
-          else
-            echo "No feature file found in last commit — running all features"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger — running all features"
             FILE="features/"
+          else
+            FILE=$(git log -1 --name-only --pretty=format: -- 'features/*.feature' | head -1)
+            if [ -n "$FILE" ]; then
+              echo "Feature file detected: $FILE"
+            else
+              echo "No feature file found in last commit — running all features"
+              FILE="features/"
+            fi
           fi
           echo "path=$FILE" >> $GITHUB_OUTPUT
 
