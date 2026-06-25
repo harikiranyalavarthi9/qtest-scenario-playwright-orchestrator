@@ -69,6 +69,7 @@ Set these **constants** in the Pulse UI:
 | `GitHubToken` | action-2 | GitHub PAT with `Actions: Read and Write` permission | Yes |
 | `GitHubRepo` | action-2 | `owner/repo` | No |
 | `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests` | No |
+| `GitHubAPIURL` | action-2 | GitHub REST API base URL (default: `https://api.github.com`). Set to `https://<hostname>/api/v3` for GitHub Enterprise Server | No |
 | `QTEST_TOKEN` | action-4, 5, 6 | qTest Manager API bearer token | Yes |
 | `ManagerURL` | action-4, 5 | e.g. `yourorg.qtestnet.com` — hostname only, no `https://` | No |
 | `Scenario_URL` | action-5, 6 | e.g. `https://scenario-v2-0-us-east-1.qtestnet.com` | No |
@@ -161,6 +162,7 @@ Set these **constants** in the Pulse UI:
 | `GitHubToken` | action-2 | GitHub PAT with `Actions: Read and Write` permission | Yes |
 | `GitHubRepo` | action-2 | `owner/repo` | No |
 | `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests` | No |
+| `GitHubAPIURL` | action-2 | GitHub REST API base URL (default: `https://api.github.com`). Set to `https://<hostname>/api/v3` for GitHub Enterprise Server | No |
 | `ChatOpsWebhook` | action-1 | Slack incoming webhook URL (optional) | Yes |
 
 When a scenario is saved, Pulse fires a `repository_dispatch` event to GitHub —
@@ -207,7 +209,7 @@ pulse/
     action-6-UpdateScenarioSteps.js      Update Scenario step colors pass/fail/skip
 ```
 
-Pulse constants: `GitHubToken`, `GitHubRepo`, `GitHubEventType`, `QTEST_TOKEN`,
+Pulse constants: `GitHubToken`, `GitHubRepo`, `GitHubEventType`, `GitHubAPIURL`, `QTEST_TOKEN`,
 `ManagerURL`, `Scenario_URL`, `SCENARIO_PROJECT_ID`, `QTEST_PROJECT_ID`,
 `QTEST_TEST_CYCLE_ID`, `ChatOpsWebhook`
 
@@ -229,7 +231,7 @@ pulse/
     action-2-TriggerGitHubActions.js       Fires GitHub repository_dispatch on ScenarioSaved
 ```
 
-Pulse constants: `GitHubToken`, `GitHubRepo`, `GitHubEventType`, `ChatOpsWebhook`
+Pulse constants: `GitHubToken`, `GitHubRepo`, `GitHubEventType`, `GitHubAPIURL`, `ChatOpsWebhook`
 
 GitHub Actions secrets: `QTEST_TOKEN`, `QTEST_MANAGER_URL`, `QTEST_PROJECT_ID`,
 `QTEST_TEST_CYCLE_ID`, and optionally `QTEST_SCENARIO_URL`, `SCENARIO_PROJECT_ID`,
