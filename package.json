@@ -11,12 +11,13 @@
   "keywords": ["cucumber", "bdd", "playwright", "qtest", "github-actions"],
   "license": "MIT",
   "devDependencies": {
-    "@cucumber/cucumber": "^10.0.0",
+    "@cucumber/cucumber": "^13.0.0",
     "playwright": "^1.48.0"
   },
   "overrides": {
     "reflect-metadata": ">=0.2.2",
     "uuid": ">=11.0.0",
-    "glob": ">=11.0.0"
+    "glob": ">=11.0.0",
+    "tmp": ">=0.2.6"
   }
 }
