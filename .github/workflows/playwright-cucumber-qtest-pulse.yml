@@ -15,7 +15,7 @@ on:
   # Triggered by an external webhook (e.g. the qTest Pulse TriggerGitHubActions action)
   # via POST .../dispatches with {"event_type":"run-tests"}.
   repository_dispatch:
-    types: [run-tests]
+    types: [run-tests-pulse]
 
 jobs:
   test:

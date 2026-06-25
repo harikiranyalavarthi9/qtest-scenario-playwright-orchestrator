@@ -17,7 +17,7 @@
       "id": "constant-12",
       "name": "GitHubEventType",
       "hidden": false,
-      "value": "run-tests"
+      "value": "run-tests-direct"
     },
     {
       "id": "constant-13",

@@ -28,7 +28,7 @@ on:
   # with body: {"event_type":"run-tests"}
   # See DOCUMENTATION.md § "Triggering without Pulse" for exact setup steps.
   repository_dispatch:
-    types: [run-tests]
+    types: [run-tests-direct]
 
 jobs:
   test:

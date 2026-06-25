@@ -68,7 +68,7 @@ Set these **constants** in the Pulse UI:
 |---|---|---|---|
 | `GitHubToken` | action-2 | GitHub PAT with `Actions: Read and Write` permission | Yes |
 | `GitHubRepo` | action-2 | `owner/repo` | No |
-| `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests` | No |
+| `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests-pulse` | No |
 | `GitHubAPIURL` | action-2 | GitHub REST API base URL (default: `https://api.github.com`). Set to `https://<hostname>/api/v3` for GitHub Enterprise Server | No |
 | `QTEST_TOKEN` | action-4, 5, 6 | qTest Manager API bearer token | Yes |
 | `ManagerURL` | action-4, 5 | e.g. `yourorg.qtestnet.com` — hostname only, no `https://` | No |
@@ -161,7 +161,7 @@ Set these **constants** in the Pulse UI:
 |---|---|---|---|
 | `GitHubToken` | action-2 | GitHub PAT with `Actions: Read and Write` permission | Yes |
 | `GitHubRepo` | action-2 | `owner/repo` | No |
-| `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests` | No |
+| `GitHubEventType` | action-2 | Must match the workflow trigger — use `run-tests-direct` | No |
 | `GitHubAPIURL` | action-2 | GitHub REST API base URL (default: `https://api.github.com`). Set to `https://<hostname>/api/v3` for GitHub Enterprise Server | No |
 | `ChatOpsWebhook` | action-1 | Slack incoming webhook URL (optional) | Yes |
 
@@ -300,4 +300,4 @@ to requirements automatically when the Scenario API is reachable.
 | Cloudflare 403 on step search | Email address in query string | Already handled — bulk fetch + client-side matching |
 | `[WARN] No matching step` | Feature not tracked in Scenario | Only features that exist in qTest Scenario will have matching steps |
 | `@skip` scenarios not run | Tagged `@skip` in the feature | Expected — remove the tag once step definitions exist |
-| `repository_dispatch` doesn't trigger | Wrong `event_type` | Must match the workflow's `types: [run-tests]`; check the JSON body |
+| `repository_dispatch` doesn't trigger | Wrong `event_type` | Must match the workflow's `types` — `run-tests-pulse` for Approach A, `run-tests-direct` for Approach B; check the `GitHubEventType` constant in Pulse |
