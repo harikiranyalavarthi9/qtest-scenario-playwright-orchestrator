@@ -36,10 +36,16 @@ jobs:
       # - name: Install Playwright browsers
       #   run: npx playwright install --with-deps chromium
 
+      - name: Resolve feature path
+        id: features
+        run: |
+          FILE=$(git log -1 --name-only --pretty=format: -- 'features/*.feature' | head -1)
+          echo "path=${FILE:-features/}" >> $GITHUB_OUTPUT
+
       - name: Run Cucumber tests
         # Cucumber exits non-zero when scenarios fail; we still want to report
         # those results to Pulse, so don't fail the job here.
-        run: npx cucumber-js --config config/cucumber.js features/
+        run: npx cucumber-js --config config/cucumber.js ${{ steps.features.outputs.path }}
         continue-on-error: true
 
       - name: Upload Cucumber report artifact
