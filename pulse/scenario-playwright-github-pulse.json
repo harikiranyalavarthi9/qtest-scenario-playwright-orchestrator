@@ -1,0 +1,209 @@
+{
+  "constants": [
+    {
+      "id": "constant-5",
+      "name": "QTEST_TOKEN",
+      "hidden": true,
+      "value": ""
+    },
+    {
+      "id": "constant-6",
+      "name": "ManagerURL",
+      "hidden": false,
+      "value": ""
+    },
+    {
+      "id": "constant-7",
+      "name": "SCENARIO_PROJECT_ID",
+      "hidden": false,
+      "value": ""
+    },
+    {
+      "id": "constant-8",
+      "name": "Scenario_URL",
+      "hidden": false,
+      "value": ""
+    },
+    {
+      "id": "constant-9",
+      "name": "ChatOpsWebhook",
+      "hidden": true,
+      "value": ""
+    },
+    {
+      "id": "constant-10",
+      "name": "GitHubToken",
+      "hidden": true,
+      "value": ""
+    },
+    {
+      "id": "constant-11",
+      "name": "GitHubRepo",
+      "hidden": false,
+      "value": "harikiranyalavarthi9/qtest-scenario-playwright-orchestrator"
+    },
+    {
+      "id": "constant-12",
+      "name": "GitHubEventType",
+      "hidden": false,
+      "value": "run-tests"
+    },
+    {
+      "id": "constant-13",
+      "name": "GitHubAPIURL",
+      "hidden": false,
+      "value": "https://api.github.com"
+    },
+    {
+      "id": "constant-24",
+      "name": "QTEST_PROJECT_ID",
+      "hidden": false,
+      "value": ""
+    },
+    {
+      "id": "constant-25",
+      "name": "QTEST_TEST_CYCLE_ID",
+      "hidden": false,
+      "value": ""
+    }
+  ],
+  "actions": [
+    {
+      "id": "action-2",
+      "name": "TriggerGitHubActions",
+      "description": "Trigger the GitHub Actions workflow via repository_dispatch",
+      "code": "const request = require('request');\nconst { Webhooks } = require('@qasymphony/pulse-sdk');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    function emitEvent(name, payload) {\n        let t = triggers.find(t => t.name === name);\n        return t && new Webhooks().invoke(t, payload);\n    }\n\n    const token = constants.GitHubToken;\n    const repo = constants.GitHubRepo;\n    const eventType = constants.GitHubEventType || 'run-tests';\n    const apiBase = (constants.GitHubAPIURL || 'https://api.github.com').replace(/\\/+$/, '');\n\n    if (!token || !repo) {\n        console.log('[ERROR] Missing GitHub configuration (GitHubToken / GitHubRepo)');\n        emitEvent('ChatOpsEvent', { message: '[ERROR] GitHub Actions trigger config incomplete' });\n        return;\n    }\n\n    const url = apiBase + '/repos/' + repo + '/dispatches';\n    console.log('[INFO] Dispatching GitHub Actions for ' + repo + ' via ' + apiBase + ' (event_type: ' + eventType + ')');\n\n    request({\n        url: url,\n        method: 'POST',\n        headers: {\n            'Authorization': 'Bearer ' + token,\n            'Accept': 'application/vnd.github+json',\n            'X-GitHub-Api-Version': '2022-11-28',\n            // GitHub's API rejects requests without a User-Agent header.\n            'User-Agent': 'qTest-Pulse',\n            'Content-Type': 'application/json'\n        },\n        body: JSON.stringify({\n            event_type: eventType,\n            client_payload: {\n                source: 'qTest Scenario',\n                scenarioId: body && body.id,\n                triggeredAt: new Date().toISOString()\n            }\n        })\n    }, function (err, res, responseBody) {\n        if (err) {\n            console.log('[ERROR] GitHub dispatch failed:', err);\n            emitEvent('ChatOpsEvent', { message: '[ERROR] GitHub Actions trigger failed: ' + err });\n            return;\n        }\n\n        // The dispatches API returns 204 No Content on success.\n        if (res.statusCode === 204) {\n            console.log('[SUCCESS] GitHub Actions workflow dispatched');\n            emitEvent('ChatOpsEvent', { message: '[SUCCESS] GitHub Actions triggered (event_type: ' + eventType + ')' });\n        } else {\n            console.log('[ERROR] GitHub returned status: ' + res.statusCode + ' body: ' + responseBody);\n            emitEvent('ChatOpsEvent', { message: '[ERROR] GitHub Actions trigger failed. Status: ' + res.statusCode + ' ' + responseBody });\n        }\n    });\n};"
+    },
+    {
+      "id": "action-1",
+      "name": "ChatOpsEvent",
+      "description": "Send notifications to Slack",
+      "code": "const request = require('request');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    const message = body.message || JSON.stringify(body);\n    const webhook = constants.ChatOpsWebhook;\n\n    if (!webhook) {\n        console.log('[WARN] ChatOpsWebhook not configured, skipping notification');\n        return;\n    }\n\n    request({\n        uri: webhook,\n        method: 'POST',\n        json: { text: message, mrkdwn: true }\n    }, function (err) {\n        if (err) {\n            console.log('[ERROR] Slack send failed:', err);\n        } else {\n            console.log('[INFO] Slack message sent');\n        }\n    });\n};"
+    },
+    {
+      "id": "action-3",
+      "name": "FormatCucumberResults",
+      "description": "Parse Cucumber JSON from GitHub Actions (Playwright) and format for qTest",
+      "code": "const { Webhooks } = require('@qasymphony/pulse-sdk');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    function emitEvent(name, payload) {\n        let t = triggers.find(t => t.name === name);\n        return t && new Webhooks().invoke(t, payload);\n    }\n\n    // Fall back to Pulse constants when the payload doesn't carry the IDs\n    // (e.g. the FetchReportFromGitHub / direct-webhook paths).\n    var projectId = body.projectId || constants.QTEST_PROJECT_ID;\n    var cycleId = body.testcycle || constants.QTEST_TEST_CYCLE_ID;\n    var testResults = [];\n\n    try {\n        if (body.result) {\n            var decoded = Buffer.from(body.result, 'base64').toString('utf-8');\n            testResults = JSON.parse(decoded);\n        }\n    } catch (e) {\n        console.log('[ERROR] Failed to parse results:', e.message);\n        emitEvent('ChatOpsEvent', { message: '[ERROR] Invalid test results: ' + e.message });\n        return;\n    }\n\n    var testLogs = [];\n    var passed = 0;\n    var failed = 0;\n    var skipped = 0;\n\n    testResults.forEach(function (feature) {\n        var featureName = feature.name || 'Unknown Feature';\n        var featureUri = feature.uri || '';\n\n        if (!feature.elements) {\n            return;\n        }\n\n        feature.elements.forEach(function (scenario) {\n            if (!scenario.name) scenario.name = 'Unnamed Scenario';\n\n            var scenarioStatus = 'passed';\n            var stepLogs = [];\n            var stepOrder = 0;\n            var stepNames = [];\n            var attachments = [];\n\n            if (!scenario.steps) return;\n\n            scenario.steps.forEach(function (step) {\n                var name = step.name || 'Unknown Step';\n                var keyword = step.keyword || '';\n                stepNames.push(keyword + name);\n\n                var status = 'passed';\n                var actual = keyword + name;\n\n                if (!step.result) {\n                    status = 'skipped';\n                    if (scenarioStatus !== 'failed') scenarioStatus = 'skipped';\n                } else {\n                    status = step.result.status || 'passed';\n                    if (status === 'failed') {\n                        scenarioStatus = 'failed';\n                        actual = step.result.error_message || 'Step failed';\n                    } else if (status === 'skipped' || status === 'pending') {\n                        status = 'skipped';\n                        if (scenarioStatus !== 'failed') scenarioStatus = 'skipped';\n                    } else if (status === 'undefined') {\n                        scenarioStatus = 'failed';\n                        status = 'failed';\n                        actual = 'Step definition not found';\n                    }\n                }\n\n                if (step.embeddings && Array.isArray(step.embeddings)) {\n                    step.embeddings.forEach(function (emb, i) {\n                        attachments.push({\n                            name: name + ' Attachment ' + (i + 1),\n                            content_type: emb.mime_type || 'application/octet-stream',\n                            data: emb.data\n                        });\n                    });\n                }\n\n                stepLogs.push({\n                    order: stepOrder++,\n                    description: keyword + name,\n                    expected_result: (step.match && step.match.location) ? step.match.location : keyword + name,\n                    actual_result: actual,\n                    status: status,\n                    keyword: keyword\n                });\n            });\n\n            if (scenarioStatus === 'passed') passed++;\n            else if (scenarioStatus === 'failed') failed++;\n            else skipped++;\n\n            testLogs.push({\n                exe_start_date: new Date().toISOString(),\n                exe_end_date: new Date().toISOString(),\n                module_names: [featureName],\n                name: scenario.name,\n                automation_content: featureUri + '#' + scenario.name,\n                attachments: attachments,\n                description: stepNames.join('<br/>'),\n                status: scenarioStatus,\n                test_step_logs: stepLogs,\n                featureName: featureName\n            });\n        });\n    });\n\n    var total = passed + failed + skipped;\n    console.log('[INFO] Formatted: Total=' + total + ' Passed=' + passed + ' Failed=' + failed + ' Skipped=' + skipped);\n    emitEvent('ChatOpsEvent', {\n        message: 'Test Summary: ' + total + ' total, ' + passed + ' passed, ' + failed + ' failed, ' + skipped + ' skipped'\n    });\n\n    emitEvent('UploadQTestResults', {\n        projectId: projectId,\n        testcycle: cycleId,\n        logs: testLogs,\n        summary: { total: total, passed: passed, failed: failed, skipped: skipped }\n    });\n};"
+    },
+    {
+      "id": "action-4",
+      "name": "UploadQTestResults",
+      "description": "Upload formatted test results to qTest Manager and monitor queue",
+      "code": "const request = require('request');\nconst { Webhooks } = require('@qasymphony/pulse-sdk');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    function emitEvent(name, payload) {\n        let t = triggers.find(t => t.name === name);\n        return t && new Webhooks().invoke(t, payload);\n    }\n\n    var projectId = body.projectId || constants.QTEST_PROJECT_ID;\n    var cycleId = body.testcycle || constants.QTEST_TEST_CYCLE_ID;\n    var testLogs = body.logs;\n    var MAX_RETRIES = 30;\n\n    var headers = {\n        'Content-Type': 'application/json',\n        'Authorization': 'bearer ' + constants.QTEST_TOKEN\n    };\n\n    request.post({\n        url: 'https://' + constants.ManagerURL + '/api/v3/projects/' + projectId + '/auto-test-logs?type=automation',\n        json: true,\n        headers: headers,\n        body: { test_cycle: cycleId, test_logs: testLogs }\n    }, function (err, response, resBody) {\n        if (err) {\n            console.log('[ERROR] Upload failed:', err);\n            emitEvent('ChatOpsEvent', { message: '[ERROR] qTest upload failed: ' + err });\n            return;\n        }\n\n        if (resBody.type === 'AUTOMATION_TEST_LOG') {\n            queueId = resBody.id;\n            console.log('[INFO] Results queued. ID: ' + queueId);\n            emitEvent('ChatOpsEvent', { message: '[INFO] Results queued in qTest. ID: ' + queueId });\n            pollQueue(queueId, 0);\n        } else {\n            console.log('[ERROR] Unexpected response (status ' + response.statusCode + '):', JSON.stringify(resBody));\n            emitEvent('ChatOpsEvent', { message: '[ERROR] qTest upload failed. Status: ' + response.statusCode + ' Body: ' + JSON.stringify(resBody) });\n        }\n    });\n\n    function pollQueue(queueId, attempt) {\n        if (attempt >= MAX_RETRIES) {\n            console.log('[WARN] Queue polling timed out for ID: ' + queueId);\n            emitEvent('ChatOpsEvent', { message: '[WARN] Queue processing timed out' });\n            return;\n        }\n\n        setTimeout(function () {\n            request({\n                url: 'https://' + constants.ManagerURL + '/api/v3/projects/queue-processing/' + queueId,\n                json: true,\n                headers: headers\n            }, function (err, response, resBody) {\n                if (err) {\n                    console.log('[ERROR] Queue check failed:', err);\n                    return;\n                }\n\n                var state = resBody.state;\n                console.log('[INFO] Queue ' + queueId + ' state: ' + state);\n\n                if (state === 'FAILED') {\n                    console.log('[ERROR] Queue failed:', resBody.content);\n                    emitEvent('ChatOpsEvent', { message: '[ERROR] Queue processing failed: ' + resBody.content });\n                } else if (state === 'IN_WAITING' || state === 'IN_PROCESSING' || state === 'PENDING') {\n                    pollQueue(queueId, attempt + 1);\n                } else {\n                    console.log('[SUCCESS] Queue processing complete. State: ' + state);\n                    emitEvent('ChatOpsEvent', { message: '[SUCCESS] Test results processed in qTest' });\n                    emitEvent('LinkRequirements', body);\n                }\n            });\n        }, 2000);\n    }\n};"
+    },
+    {
+      "id": "action-5",
+      "name": "LinkRequirements",
+      "description": "Link test cases to matching requirements imported from Jira in qTest",
+      "code": "const request = require('request');\nconst { Webhooks } = require('@qasymphony/pulse-sdk');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    function emitEvent(name, payload) {\n        let t = triggers.find(t => t.name === name);\n        return t && new Webhooks().invoke(t, payload);\n    }\n\n    var projectId = body.projectId;\n    var testLogs = body.logs;\n\n    var headers = {\n        'Content-Type': 'application/json',\n        'Authorization': 'bearer ' + constants.QTEST_TOKEN,\n        'x-scenario-project-id': constants.SCENARIO_PROJECT_ID\n    };\n\n    request.get({\n        url: constants.Scenario_URL + '/api/features',\n        headers: headers\n    }, function (err, response, resBody) {\n        if (err) {\n            console.log('[ERROR] Failed to get features:', err);\n            emitEvent('ChatOpsEvent', { message: '[ERROR] Could not retrieve features: ' + err });\n            return;\n        }\n\n        var features;\n        try {\n            features = JSON.parse(resBody);\n        } catch (e) {\n            console.log('[ERROR] Failed to parse features:', e.message);\n            emitEvent('ChatOpsEvent', { message: '[ERROR] Invalid features response' });\n            return;\n        }\n\n        console.log('[INFO] Retrieved ' + features.length + ' features from Scenario');\n        linkTestCasesToRequirements(features);\n    });\n\n    function linkTestCasesToRequirements(features) {\n        testLogs.forEach(function (testLog) {\n            var matching = features.filter(function (f) {\n                return f.name === testLog.featureName;\n            });\n\n            if (matching.length === 0) {\n                console.log('[INFO] No matching feature for: ' + testLog.name);\n                return;\n            }\n\n            matching.forEach(function (feature) {\n                findAndLinkRequirement(feature.issueKey, testLog.name);\n            });\n        });\n\n        emitEvent('UpdateScenarioSteps', body);\n    }\n\n    function findAndLinkRequirement(issueKey, testCaseName) {\n        request.post({\n            url: 'https://' + constants.ManagerURL + '/api/v3/projects/' + projectId + '/search',\n            json: true,\n            headers: headers,\n            body: {\n                object_type: 'requirements',\n                fields: ['*'],\n                query: \"Name ~ '\" + issueKey + \"'\"\n            }\n        }, function (err, response, reqResult) {\n            if (err || !reqResult.items || reqResult.items.length === 0) {\n                console.log('[INFO] No requirement found for: ' + issueKey);\n                return;\n            }\n\n            var reqId = reqResult.items[0].id;\n\n            request.post({\n                url: 'https://' + constants.ManagerURL + '/api/v3/projects/' + projectId + '/search',\n                json: true,\n                headers: headers,\n                body: {\n                    object_type: 'test-cases',\n                    fields: ['*'],\n                    query: \"Name = '\" + testCaseName + \"'\"\n                }\n            }, function (tcErr, tcResponse, tcResult) {\n                if (tcErr || !tcResult.items || tcResult.items.length === 0) {\n                    console.log('[INFO] Test case not yet in qTest: ' + testCaseName);\n                    return;\n                }\n\n                var tcId = tcResult.items[0].id;\n\n                request.post({\n                    url: 'https://' + constants.ManagerURL + '/api/v3/projects/' + projectId + '/requirements/' + reqId + '/link?type=test-cases',\n                    json: true,\n                    headers: headers,\n                    body: [tcId]\n                }, function (linkErr) {\n                    if (linkErr) {\n                        console.log('[ERROR] Link failed:', linkErr);\n                        return;\n                    }\n                    console.log('[SUCCESS] Linked TC \"' + testCaseName + '\" to requirement \"' + issueKey + '\"');\n                    emitEvent('ChatOpsEvent', { message: '[SUCCESS] Linked: ' + testCaseName + ' -> ' + issueKey });\n                });\n            });\n        });\n    }\n};"
+    },
+    {
+      "id": "action-6",
+      "name": "UpdateScenarioSteps",
+      "description": "Update Scenario step status colors based on test results, with Slack summary",
+      "code": "const request = require('request');\nconst { Webhooks } = require('@qasymphony/pulse-sdk');\n\nexports.handler = function ({ event: body, constants, triggers }, context, callback) {\n    function emitEvent(name, payload) {\n        var t = triggers.find(function (tr) { return tr.name === name; });\n        return t && new Webhooks().invoke(t, payload);\n    }\n\n    var testLogs = body.logs;\n    if (!testLogs || !Array.isArray(testLogs) || testLogs.length === 0) {\n        console.log('[WARN] No test logs provided');\n        emitEvent('ChatOpsEvent', { message: ':warning: *Scenario Steps Update*\\nNo test logs to process.' });\n        return;\n    }\n\n    var scenarioURL = constants.Scenario_URL;\n    var projectId = constants.SCENARIO_PROJECT_ID;\n    var token = constants.QTEST_TOKEN;\n\n    if (!scenarioURL || !projectId || !token) {\n        var missing = [];\n        if (!scenarioURL) missing.push('Scenario_URL');\n        if (!projectId) missing.push('SCENARIO_PROJECT_ID');\n        if (!token) missing.push('QTEST_TOKEN');\n        console.log('[ERROR] Missing constants: ' + missing.join(', '));\n        emitEvent('ChatOpsEvent', {\n            message: ':x: *Scenario Steps Update Failed*\\nMissing configuration: `' + missing.join('`, `') + '`'\n        });\n        return;\n    }\n\n    scenarioURL = scenarioURL.replace(/\\/+$/, '');\n\n    var headers = {\n        'Content-Type': 'application/json',\n        'Authorization': 'Bearer ' + token,\n        'x-scenario-project-id': projectId\n    };\n\n    var results = { updated: [], failed: [], notFound: [] };\n\n    getAllSteps(scenarioURL, headers).then(function (allSteps) {\n        console.log('[INFO] Fetched ' + allSteps.length + ' steps from Scenario');\n\n        if (allSteps.length === 0) {\n            console.log('[WARN] No steps found in Scenario project');\n            emitEvent('ChatOpsEvent', {\n                message: ':warning: *Scenario Steps Update*\\nNo steps found in the Scenario project. Verify the project ID.'\n            });\n            return;\n        }\n\n        var promises = [];\n\n        testLogs.forEach(function (log) {\n            if (!log.test_step_logs || !Array.isArray(log.test_step_logs)) return;\n\n            log.test_step_logs.forEach(function (step) {\n                var name = step.description ? step.description.trim() : '';\n                if (!name) return;\n\n                var keyword = step.keyword || '';\n                if (keyword === 'Before' || keyword === 'After') return;\n\n                var searchText = name;\n                var kwTrimmed = keyword.trim();\n                if (kwTrimmed && searchText.startsWith(kwTrimmed + ' ')) {\n                    searchText = searchText.slice(kwTrimmed.length + 1);\n                }\n\n                var status = step.status ? step.status.toUpperCase() : 'FAILED';\n                if (status === 'UNDEFINED') status = 'FAILED';\n\n                var matched = allSteps.filter(function (s) {\n                    var textMatch = s.text && s.text.trim() === searchText.trim();\n                    if (!textMatch) return false;\n                    if (kwTrimmed && s.keyword) {\n                        return s.keyword.trim() === kwTrimmed;\n                    }\n                    return true;\n                });\n\n                if (matched.length === 0) {\n                    console.log('[WARN] No matching step found for: \"' + name + '\"');\n                    results.notFound.push(name);\n                    return;\n                }\n\n                matched.forEach(function (s) {\n                    var p = updateStep(scenarioURL, headers, s.id, Object.assign({}, s, { status: status }))\n                        .then(function () {\n                            console.log('[OK] Updated step \"' + name + '\" -> ' + status);\n                            results.updated.push({ name: name, status: status });\n                        })\n                        .catch(function (err) {\n                            var errMsg = err.message || String(err);\n                            console.log('[ERROR] Failed to update step \"' + name + '\":', errMsg);\n                            results.failed.push({ name: name, error: errMsg });\n                        });\n                    promises.push(p);\n                });\n            });\n        });\n\n        return Promise.all(promises);\n    })\n    .then(function () {\n        console.log('[SUCCESS] All scenario steps processed');\n        emitEvent('ChatOpsEvent', { message: buildSummary(results) });\n    })\n    .catch(function (err) {\n        var errMsg = err.message || String(err);\n        console.log('[ERROR] Step update error:', errMsg);\n        emitEvent('ChatOpsEvent', {\n            message: ':x: *Scenario Steps Update Failed*\\n' + errMsg\n        });\n    });\n};\n\nfunction buildSummary(results) {\n    var icon = results.failed.length > 0 ? ':warning:' : ':white_check_mark:';\n    var lines = [];\n\n    lines.push(icon + ' *Scenario Steps Update Summary*');\n    lines.push('');\n\n    if (results.updated.length > 0) {\n        var byStatus = {};\n        results.updated.forEach(function (u) {\n            if (!byStatus[u.status]) byStatus[u.status] = [];\n            byStatus[u.status].push(u.name);\n        });\n\n        Object.keys(byStatus).forEach(function (status) {\n            var statusIcon = status === 'PASSED' ? ':large_green_circle:'\n                : status === 'FAILED' ? ':red_circle:'\n                : ':white_circle:';\n            lines.push(statusIcon + ' *' + status + '* (' + byStatus[status].length + ' steps)');\n            byStatus[status].forEach(function (name) {\n                lines.push('    ' + name);\n            });\n        });\n    }\n\n    if (results.failed.length > 0) {\n        lines.push('');\n        lines.push(':x: *Update Errors* (' + results.failed.length + ')');\n        results.failed.forEach(function (f) {\n            lines.push('    ' + f.name + ' \\u2014 `' + f.error + '`');\n        });\n    }\n\n    if (results.notFound.length > 0) {\n        lines.push('');\n        lines.push(':mag: *Not Found in Scenario* (' + results.notFound.length + ' steps skipped)');\n    }\n\n    lines.push('');\n    lines.push('*Totals:* ' + results.updated.length + ' updated | '\n        + results.failed.length + ' errors | '\n        + results.notFound.length + ' not found');\n\n    return lines.join('\\n');\n}\n\nfunction getAllSteps(scenarioURL, headers) {\n    return new Promise(function (resolve, reject) {\n        request({\n            url: scenarioURL + '/api/steps',\n            method: 'GET',\n            headers: headers,\n            json: true,\n            timeout: 30000\n        }, function (err, response, resBody) {\n            if (err) {\n                if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') {\n                    return reject(new Error('Scenario API timed out fetching steps'));\n                }\n                return reject(new Error('Scenario API request failed: ' + (err.message || err)));\n            }\n            if (!response) {\n                return reject(new Error('No response received from Scenario API'));\n            }\n            if (response.statusCode >= 400) {\n                var detail = typeof resBody === 'string' ? resBody.substring(0, 200) : JSON.stringify(resBody);\n                return reject(new Error('GET /api/steps failed (' + response.statusCode + '): ' + detail));\n            }\n            resolve(Array.isArray(resBody) ? resBody : []);\n        });\n    });\n}\n\nfunction updateStep(scenarioURL, headers, stepId, stepData) {\n    return new Promise(function (resolve, reject) {\n        request({\n            url: scenarioURL + '/api/steps/' + stepId,\n            method: 'PUT',\n            headers: headers,\n            json: true,\n            body: stepData,\n            timeout: 15000\n        }, function (err, response, resBody) {\n            if (err) {\n                if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') {\n                    return reject(new Error('Timeout updating step ' + stepId));\n                }\n                return reject(new Error('Request failed: ' + (err.message || err)));\n            }\n            if (!response) {\n                return reject(new Error('No response for step ' + stepId));\n            }\n            if (response.statusCode >= 400) {\n                var detail = typeof resBody === 'string' ? resBody.substring(0, 200) : JSON.stringify(resBody);\n                return reject(new Error('PUT step ' + stepId + ' failed (' + response.statusCode + '): ' + detail));\n            }\n            resolve(resBody);\n        });\n    });\n}"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trigger-1",
+      "name": "ChatOpsEvent"
+    },
+    {
+      "id": "trigger-3",
+      "name": "PulseWebhookReceived"
+    },
+    {
+      "id": "trigger-4",
+      "name": "UploadQTestResults"
+    },
+    {
+      "id": "trigger-5",
+      "name": "LinkRequirements"
+    },
+    {
+      "id": "trigger-6",
+      "name": "UpdateScenarioSteps"
+    },
+    {
+      "id": "trigger-2",
+      "name": "ScenarioSaved"
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule-1",
+      "name": "NotifySlack",
+      "active": true,
+      "triggerId": "trigger-1",
+      "actionIds": [
+        "action-1"
+      ],
+      "tags": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "rule-3",
+      "name": "GitHubActionsResults_FormatCucumber",
+      "active": true,
+      "triggerId": "trigger-3",
+      "actionIds": [
+        "action-3"
+      ],
+      "tags": [
+        "formatting"
+      ]
+    },
+    {
+      "id": "rule-4",
+      "name": "UploadResults_ToQTest",
+      "active": true,
+      "triggerId": "trigger-4",
+      "actionIds": [
+        "action-4"
+      ],
+      "tags": [
+        "qtest",
+        "upload"
+      ]
+    },
+    {
+      "id": "rule-5",
+      "name": "LinkTestCases_ToRequirements",
+      "active": true,
+      "triggerId": "trigger-5",
+      "actionIds": [
+        "action-5"
+      ],
+      "tags": [
+        "linking"
+      ]
+    },
+    {
+      "id": "rule-6",
+      "name": "UpdateScenario_StepColors",
+      "active": true,
+      "triggerId": "trigger-6",
+      "actionIds": [
+        "action-6"
+      ],
+      "tags": [
+        "scenario"
+      ]
+    },
+    {
+      "id": "rule-2",
+      "name": "ScenarioSaved_TriggerGitHubActions",
+      "active": true,
+      "triggerId": "trigger-2",
+      "actionIds": [
+        "action-2"
+      ],
+      "tags": [
+        "ci/cd"
+      ]
+    }
+  ]
+}

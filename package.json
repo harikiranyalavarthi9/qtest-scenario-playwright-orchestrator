@@ -1,0 +1,17 @@
+{
+  "name": "playwright-cucumber-qtest",
+  "version": "1.0.0",
+  "description": "Playwright + Cucumber BDD tests run by GitHub Actions, results fed to qTest Pulse",
+  "scripts": {
+    "test": "cucumber-js --config config/cucumber.js features/",
+    "test:report": "cucumber-js --config config/cucumber.js features/",
+    "post-results": "node scripts/post-to-pulse.js",
+    "post-to-qtest": "node scripts/post-to-qtest.js"
+  },
+  "keywords": ["cucumber", "bdd", "playwright", "qtest", "github-actions"],
+  "license": "MIT",
+  "devDependencies": {
+    "@cucumber/cucumber": "^10.0.0",
+    "playwright": "^1.48.0"
+  }
+}

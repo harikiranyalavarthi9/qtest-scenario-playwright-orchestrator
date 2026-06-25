@@ -1,0 +1,83 @@
+name: Playwright Cucumber BDD -> qTest (Direct, no Pulse)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHEN TO USE THIS WORKFLOW
+#
+# This is the Pulse-free alternative to playwright-cucumber-qtest-pulse.yml.
+# Tests run in GitHub Actions and results are posted DIRECTLY to qTest Manager
+# via the qTest API — no qTest Pulse licence or configuration required.
+#
+# Comparison:
+#   playwright-cucumber-qtest-pulse.yml  → Tests run here, Pulse handles upload/linking
+#   playwright-cucumber-qtest-direct.yml → Tests run here, this workflow handles everything
+#
+# See DOCUMENTATION.md § "Approach B — Direct (no Pulse)" for full setup.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    paths:
+      - 'features/**'
+      - 'tests/step-definitions/**'
+      - 'src/mock-server/**'
+      - '.github/workflows/playwright-cucumber-qtest-direct.yml'
+  workflow_dispatch:
+  # Triggered directly by a qTest Scenario webhook (no Pulse needed).
+  # Configure qTest Scenario to POST to:
+  #   https://api.github.com/repos/<owner>/<repo>/dispatches
+  # with body: {"event_type":"run-tests"}
+  # See DOCUMENTATION.md § "Triggering without Pulse" for exact setup steps.
+  repository_dispatch:
+    types: [run-tests]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The tests use Playwright's APIRequestContext (no browser), so the
+      # browser binaries are not required. Uncomment if you add UI tests.
+      # - name: Install Playwright browsers
+      #   run: npx playwright install --with-deps chromium
+
+      - name: Run Cucumber tests
+        # Cucumber exits non-zero when scenarios fail; continue so the upload
+        # step always runs and failing results are still sent to qTest.
+        run: npx cucumber-js --config config/cucumber.js features/
+        continue-on-error: true
+
+      - name: Upload Cucumber report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: reports/cucumber-report.json
+          if-no-files-found: error
+
+      - name: Post results to qTest (direct)
+        # Mirrors the full Pulse action chain (format → upload → link → step colors)
+        # in a single Node.js script. Optional features activate automatically
+        # when the corresponding secrets are set.
+        if: always()
+        env:
+          # Required
+          QTEST_TOKEN:          ${{ secrets.QTEST_TOKEN }}
+          QTEST_MANAGER_URL:    ${{ secrets.QTEST_MANAGER_URL }}
+          QTEST_PROJECT_ID:     ${{ secrets.QTEST_PROJECT_ID }}
+          QTEST_TEST_CYCLE_ID:  ${{ secrets.QTEST_TEST_CYCLE_ID }}
+          # Optional — enables requirement linking and Scenario step colour updates
+          QTEST_SCENARIO_URL:   ${{ secrets.QTEST_SCENARIO_URL }}
+          SCENARIO_PROJECT_ID:  ${{ secrets.SCENARIO_PROJECT_ID }}
+          # Optional — Slack notifications
+          SLACK_WEBHOOK_URL:    ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: npm run post-to-qtest

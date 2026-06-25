@@ -1,0 +1,65 @@
+name: Playwright Cucumber BDD -> qTest Pulse
+
+# Runs when qTest Scenario commits/updates feature files (or step defs / mock server),
+# and can also be run manually. Runs the full test suite and posts results directly
+# to qTest Pulse via the webhook.
+
+on:
+  push:
+    paths:
+      - 'features/**'
+      - 'tests/step-definitions/**'
+      - 'src/mock-server/**'
+      - '.github/workflows/playwright-cucumber-qtest-pulse.yml'
+  workflow_dispatch:
+  # Triggered by an external webhook (e.g. the qTest Pulse TriggerGitHubActions action)
+  # via POST .../dispatches with {"event_type":"run-tests"}.
+  repository_dispatch:
+    types: [run-tests]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # github.server_url is set automatically by GitHub Actions for both GitHub Cloud
+      # and GitHub Enterprise Server — no extra input needed.
+      GITHUB_SERVER_URL: ${{ github.server_url }}
+      GITHUB_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The tests use Playwright's APIRequestContext (no browser), so the
+      # browser binaries are not required. Uncomment if you add UI tests.
+      # - name: Install Playwright browsers
+      #   run: npx playwright install --with-deps chromium
+
+      - name: Run Cucumber tests
+        # Cucumber exits non-zero when scenarios fail; we still want to report
+        # those results to Pulse, so don't fail the job here.
+        run: npx cucumber-js --config config/cucumber.js features/
+        continue-on-error: true
+
+      - name: Upload Cucumber report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: reports/cucumber-report.json
+          if-no-files-found: error
+
+      - name: Send results to qTest Pulse
+        if: always()
+        env:
+          PULSE_WEBHOOK_URL: ${{ secrets.PULSE_WEBHOOK_URL }}
+          QTEST_PROJECT_ID: ${{ secrets.QTEST_PROJECT_ID }}
+          QTEST_TEST_CYCLE_ID: ${{ secrets.QTEST_TEST_CYCLE_ID }}
+        run: npm run post-results

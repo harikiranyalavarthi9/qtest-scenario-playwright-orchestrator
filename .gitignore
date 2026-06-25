@@ -1,0 +1,59 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.npm/
+.yarn-integrity
+*.tgz
+
+# ─── Secrets & credentials ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+.netrc
+.npmrc
+token.json
+*_token.txt
+*_secret.txt
+
+# ─── Test output & reports ───────────────────────────────────────────────────
+reports/
+test-results/
+playwright-report/
+coverage/
+*.lcov
+
+# ─── Build output ────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Temp files ──────────────────────────────────────────────────────────────
+*.tmp
+*.temp
+.cache/
+
+# ─── OS junk ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── IDE & editor ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
