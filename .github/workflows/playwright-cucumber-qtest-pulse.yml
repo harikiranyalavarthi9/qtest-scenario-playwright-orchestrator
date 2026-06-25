@@ -5,12 +5,6 @@ name: Playwright Cucumber BDD -> qTest Pulse
 # to qTest Pulse via the webhook.
 
 on:
-  push:
-    paths:
-      - 'features/**'
-      - 'tests/step-definitions/**'
-      - 'src/mock-server/**'
-      - '.github/workflows/playwright-cucumber-qtest-pulse.yml'
   workflow_dispatch:
   # Triggered by an external webhook (e.g. the qTest Pulse TriggerGitHubActions action)
   # via POST .../dispatches with {"event_type":"run-tests"}.

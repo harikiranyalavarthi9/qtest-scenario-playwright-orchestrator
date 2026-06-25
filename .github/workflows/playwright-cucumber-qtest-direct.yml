@@ -15,12 +15,6 @@ name: Playwright Cucumber BDD -> qTest (Direct, no Pulse)
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
-  push:
-    paths:
-      - 'features/**'
-      - 'tests/step-definitions/**'
-      - 'src/mock-server/**'
-      - '.github/workflows/playwright-cucumber-qtest-direct.yml'
   workflow_dispatch:
   # Triggered directly by a qTest Scenario webhook (no Pulse needed).
   # Configure qTest Scenario to POST to:
