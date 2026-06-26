@@ -4,7 +4,7 @@ Feature: User Profile and Logout
   So that I can manage my session securely
 
   Background:
-    Given the API is accessible
+    Given the API is accessible to use
 
   Scenario: Authenticated user can view their profile
     Given I have a valid auth token
