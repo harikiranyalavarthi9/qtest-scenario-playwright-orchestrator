@@ -212,3 +212,26 @@ When('I use the expired token to access a protected resource', async function ()
         headers: { Authorization: 'Bearer ' + ctx.token }
     });
 });
+
+When('I attempt to access the dashboard using the old token', async function () {
+    ctx.response = await ctx.api.get('/api/dashboard', {
+        headers: { Authorization: 'Bearer ' + ctx.token }
+    });
+});
+
+When('I access the dashboard using the new token', async function () {
+    ctx.response = await ctx.api.get('/api/dashboard', {
+        headers: { Authorization: 'Bearer ' + ctx.newToken }
+    });
+});
+
+When('I send a refresh request without a token', async function () {
+    ctx.response = await ctx.api.post('/api/auth/refresh');
+});
+
+When('I log out using the new token', async function () {
+    ctx.response = await ctx.api.post('/api/auth/logout', {
+        headers: { Authorization: 'Bearer ' + ctx.newToken }
+    });
+});
+
