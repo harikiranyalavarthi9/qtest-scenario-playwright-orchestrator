@@ -1,4 +1,4 @@
-Feature: Dashboard Access Control
+Feature: Dashboard Access
   As an authenticated user
   I want to access the application dashboard
   So that I can view my data after logging in
